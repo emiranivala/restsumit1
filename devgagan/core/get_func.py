@@ -1,4 +1,4 @@
-import asyncio
+import asyncio 
 import time
 import os
 import re
@@ -17,9 +17,12 @@ from pyrogram.types import Message
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, SECONDS
 import cv2
 from telethon import events, Button
+
 def thumbnail(sender):
     return f'{sender}.jpg' if os.path.exists(f'{sender}.jpg') else None
+
 MAX_CHUNK_SIZE = 2000 * 1024**2
+
 def split_file(file_path, chunk_size=MAX_CHUNK_SIZE):
     chunk_files = []
     chunk_number = 1
@@ -40,12 +43,14 @@ def split_file(file_path, chunk_size=MAX_CHUNK_SIZE):
             chunk_files.append(chunk_filename)
             chunk_number += 1
     return chunk_files
+
 async def delete_after(message, delay=5):
     await asyncio.sleep(delay)
     try:
         await message.delete()
     except Exception:
         pass
+
 async def get_msg(userbot, sender, edit_id, msg_link, i, message):
     edit = ""
     chat = ""
@@ -53,12 +58,21 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
     if "?single" in msg_link:
         msg_link = msg_link.split("?single")[0]
     msg_id = int(msg_link.split("/")[-1]) + int(i)
-    if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
-        parts = msg_link.split("/")
-        if 't.me/b/' not in msg_link:
-            chat = int('-100' + str(parts[parts.index('c') + 1]))
-        else:
-            chat = msg_link.split("/")[-2]
+    
+    # Modified block to handle public groups (t.me/) along with t.me/c/ and t.me/b/ links
+    if 't.me/c/' in msg_link or 't.me/b/' in msg_link or 't.me/' in msg_link:
+        try:
+            if 't.me/b/' in msg_link:
+                chat = int(msg_link.split("/")[-2])
+            elif 't.me/c/' in msg_link:
+                parts = msg_link.split("/")
+                chat = int('-100' + str(parts[parts.index('c') + 1]))
+            else:
+                chat_name = msg_link.split('/')[-2]
+                chat = (await userbot.get_chat(f"@{chat_name}")).id
+        except Exception as e:
+            print(f"ChatID Error: {e}")
+            return
         file = ""
         try:
             chatx = message.chat.id
@@ -296,11 +310,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 delete_words = load_delete_words(sender)
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
-                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                replacements = load_replacement_words(sender)
-                for word, replace_word in replacements.items():
-                    final_caption = final_caption.replace(word, replace_word)
-                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
+                final_caption = f"{original_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{original_caption}"
                 target_chat_ids = user_chat_ids.get(sender, sender)
                 devgaganin = await app.send_photo(chat_id=target_chat_ids, photo=file, caption=caption)
                 if msg.pinned_message:
@@ -317,11 +327,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 delete_words = load_delete_words(sender)
                 custom_caption = get_user_caption_preference(sender)
                 original_caption = msg.caption if msg.caption else ''
-                final_caption = f"{original_caption}" if custom_caption else f"{original_caption}"
-                replacements = load_replacement_words(chatx)
-                for word, replace_word in replacements.items():
-                    final_caption = final_caption.replace(word, replace_word)
-                caption = f"{final_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{final_caption}"
+                final_caption = f"{original_caption}\n\n__**{custom_caption}**__" if custom_caption else f"{original_caption}"
                 target_chat_id = user_chat_ids.get(chatx, chatx)
                 try:
                     if msg.media == MessageMediaType.DOCUMENT:
@@ -399,6 +405,7 @@ async def get_msg(userbot, sender, edit_id, msg_link, i, message):
                 await app.edit_message_text(sender, edit_id, f". Error: {e}")
             except Exception:
                 pass
+
 async def copy_message_with_chat_id(client, sender, chat_id, message_id):
     target_chat_id = user_chat_ids.get(sender, sender)
     try:
@@ -439,21 +446,25 @@ async def copy_message_with_chat_id(client, sender, chat_id, message_id):
             await client.send_message(sender, ".")
         except Exception:
             pass
+
 DB_NAME = "smart_users"
 COLLECTION_NAME = "super_user"
 mongo_client = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
 db = mongo_client[DB_NAME]
 collection = db[COLLECTION_NAME]
+
 def load_authorized_users():
     authorized_users = set()
     for user_doc in collection.find():
         if "user_id" in user_doc:
             authorized_users.add(user_doc["user_id"])
     return authorized_users
+
 def save_authorized_users(authorized_users):
     collection.delete_many({})
     for user_id in authorized_users:
         collection.insert_one({"user_id": user_id})
+
 SUPER_USERS = load_authorized_users()
 user_chat_ids = {}
 MDB_NAME = "logins"
@@ -461,6 +472,7 @@ MCOLLECTION_NAME = "stringsession"
 m_client = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
 mdb = m_client[MDB_NAME]
 mcollection = mdb[MCOLLECTION_NAME]
+
 def load_delete_words(user_id):
     try:
         words_data = collection.find_one({"_id": user_id})
@@ -471,6 +483,7 @@ def load_delete_words(user_id):
     except Exception as e:
         print(f"Error loading delete words: {e}")
         return set()
+
 def save_delete_words(user_id, delete_words):
     try:
         collection.update_one(
@@ -480,6 +493,7 @@ def save_delete_words(user_id, delete_words):
         )
     except Exception as e:
         print(f"Error saving delete words: {e}")
+
 def load_replacement_words(user_id):
     try:
         words_data = collection.find_one({"_id": user_id})
@@ -490,6 +504,7 @@ def load_replacement_words(user_id):
     except Exception as e:
         print(f"Error loading replacement words: {e}")
         return {}
+
 def save_replacement_words(user_id, replacements):
     try:
         collection.update_one(
@@ -499,25 +514,33 @@ def save_replacement_words(user_id, replacements):
         )
     except Exception as e:
         print(f"Error saving replacement words: {e}")
+
 user_rename_preferences = {}
 user_caption_preferences = {}
+
 def load_user_session(sender_id):
     user_data = collection.find_one({"user_id": sender_id})
     if user_data:
         return user_data.get("session")
     else:
         return None
+
 async def set_rename_command(user_id, custom_rename_tag):
     user_rename_preferences[str(user_id)] = custom_rename_tag
+
 def get_user_rename_preference(user_id):
     return user_rename_preferences.get(str(user_id), 'Team SPY')
+
 async def set_caption_command(user_id, custom_caption):
     user_caption_preferences[str(user_id)] = custom_caption
+
 def get_user_caption_preference(user_id):
     return user_caption_preferences.get(str(user_id), '')
+
 sessions = {}
 SET_PIC = "settings.jpg"
 MESS = "Customize by your end and Configure your settings ..."
+
 @gf.on(events.NewMessage(incoming=True, pattern='/settings'))
 async def settings_command(event):
     buttons = [
@@ -534,7 +557,9 @@ async def settings_command(event):
         caption=MESS,
         buttons=buttons
     )
+
 pending_photos = {}
+
 @gf.on(events.CallbackQuery)
 async def callback_query_handler(event):
     user_id = event.sender_id
@@ -570,6 +595,7 @@ async def callback_query_handler(event):
             await event.respond('Thumbnail removed successfully!')
         except FileNotFoundError:
             await event.respond("No thumbnail found to remove.")
+
 @gf.on(events.NewMessage(func=lambda e: e.sender_id in pending_photos))
 async def save_thumbnail(event):
     user_id = event.sender_id
@@ -582,6 +608,7 @@ async def save_thumbnail(event):
     else:
         await event.respond('Please send a photo... Retry')
     pending_photos.pop(user_id, None)
+
 @gf.on(events.NewMessage)
 async def handle_user_input(event):
     user_id = event.sender_id
